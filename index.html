@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clinical Guardrails</title>
+<style>
+  /* Chalk marketing palette: green-1 ground, chartreuse primary, mint accents, coral for alarms. */
+  :root { --bg:#224A41; --panel:#1C3B34; --deep:#173029; --line:#32645B; --ink:#EFF5F3; --muted:#B9CFC7;
+          --accent:#BBD96D; --mint:#70CD96; --warn:#F8947F; --amber:#E9C46A; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; padding:28px 16px; }
+  html.embed body { padding:20px; }
+  html.embed header { display:none; }
+  .wrap { max-width:1140px; margin:0 auto; display:flex; flex-direction:column; gap:14px; }
+  .mono { font-family:ui-monospace,"SFMono-Regular",Menlo,monospace; text-transform:uppercase;
+          letter-spacing:.06em; font-size:12px; }
+  h1 { font-size:22px; font-weight:500; margin:0 0 4px; letter-spacing:-0.3px; }
+  header p { color:var(--muted); margin:0; font-size:14px; }
+  .notice { display:flex; flex-wrap:wrap; gap:6px 16px; align-items:center; font-size:13px; color:var(--muted);
+            border:1px solid var(--line); border-left:3px solid var(--amber); border-radius:4px; padding:8px 12px;
+            background:var(--deep); }
+  .notice b { color:var(--ink); font-weight:500; }
+  .notice a { color:var(--warn); }
+  button { font:12px/14px ui-monospace,"SFMono-Regular",Menlo,monospace; text-transform:uppercase;
+           letter-spacing:.06em; border:1px solid var(--accent); border-radius:20px; padding:10px 16px;
+           cursor:pointer; background:var(--accent); color:var(--bg); white-space:nowrap; }
+  button:hover { background:transparent; color:var(--accent); }
+  button.ghost { background:transparent; color:var(--muted); border-color:var(--line); }
+  button.ghost:hover { color:var(--ink); border-color:var(--muted); }
+  button:disabled { opacity:.45; cursor:default; }
+  .grid { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(0,1fr); gap:14px; }
+  @media (max-width:860px) { .grid { grid-template-columns:1fr; } }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:4px; min-width:0; }
+  .card > h2 { margin:0; padding:11px 16px; border-bottom:1px solid var(--line); color:var(--muted);
+               display:flex; justify-content:space-between; gap:8px; font-weight:400; }
+  .card > h2 span:first-child { color:var(--ink); }
+  #log { height:420px; overflow-y:auto; padding:14px 16px; display:flex; flex-direction:column; gap:10px;
+         background:var(--deep); }
+  .msg { max-width:88%; padding:9px 13px; border-radius:12px; font-size:15px; white-space:pre-wrap; }
+  .msg .who { display:block; font-size:11px; color:var(--muted); margin-bottom:2px; }
+  .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line);
+             border-bottom-left-radius:2px; cursor:pointer; }
+  .msg.bot.selected { border-color:var(--mint); }
+  .msg.bot.refused { border-left:3px solid var(--mint); }
+  .msg.bot.blocked { border-left:3px solid var(--amber); }
+  .msg.bot.emergency { border:1px solid var(--warn); border-left:4px solid var(--warn); background:#3a2e2a; }
+  .msg.me { align-self:flex-end; background:#33604f; border-bottom-right-radius:2px; }
+  .msg.thinking { opacity:.6; font-style:italic; }
+  .cite { display:inline-block; font:11px/16px ui-monospace,Menlo,monospace; color:var(--mint);
+          border:1px solid var(--line); border-radius:8px; padding:0 6px; margin:0 2px; vertical-align:1px; }
+  .sos { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  .sos a { font:12px/14px ui-monospace,Menlo,monospace; text-transform:uppercase; letter-spacing:.06em;
+           border-radius:20px; padding:8px 14px; text-decoration:none; background:var(--warn); color:var(--deep); }
+  .sos a.alt { background:transparent; color:var(--warn); border:1px solid var(--warn); }
+  .composer { display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--line); align-items:center; }
+  .composer input { flex:1; min-width:0; font:inherit; color:var(--ink); background:var(--deep);
+                    border:1px solid var(--line); border-radius:20px; padding:9px 14px; outline:none; }
+  .composer input:focus { border-color:var(--mint); }
+  .chips { padding:12px 16px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:8px; }
+  .chips .row { display:flex; gap:6px; flex-wrap:wrap; }
+  .chip { font:13px/1.3 system-ui,sans-serif; text-transform:none; letter-spacing:0; padding:6px 11px;
+          border-radius:14px; background:transparent; color:var(--ink); border:1px solid var(--line); white-space:normal;
+          text-align:left; }
+  .chip:hover { border-color:var(--warn); background:transparent; color:var(--ink); }
+  .chip.safe:hover { border-color:var(--mint); }
+  .chip em { font-style:normal; color:var(--warn); font:11px ui-monospace,Menlo,monospace; text-transform:uppercase;
+             letter-spacing:.05em; margin-right:6px; }
+  .chip.safe em { color:var(--mint); }
+  .side { display:flex; flex-direction:column; gap:14px; min-width:0; }
+  .stages { list-style:none; margin:0; padding:6px 0; }
+  .stage { display:grid; grid-template-columns:22px 1fr; gap:4px 10px; padding:9px 16px; }
+  .stage + .stage { border-top:1px solid #2a5249; }
+  .dot { width:14px; height:14px; border-radius:50%; border:2px solid var(--line); margin-top:3px; }
+  .stage.run .dot { border-color:var(--accent); border-top-color:transparent; animation:spin .8s linear infinite; }
+  .stage.done .dot { border-color:var(--mint); background:var(--mint); }
+  .stage.hit .dot { border-color:var(--warn); background:var(--warn); }
+  .stage.skip .dot { border-style:dashed; }
+  .stage.skip { opacity:.45; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .stage h3 { margin:0; font-size:14px; font-weight:500; display:flex; justify-content:space-between; gap:8px; }
+  .stage h3 small { color:var(--muted); font:11px ui-monospace,Menlo,monospace; font-weight:400; }
+  .stage .detail { grid-column:2; font-size:13px; color:var(--muted); display:flex; flex-direction:column; gap:4px; }
+  .badge { display:inline-block; font-family:ui-monospace,Menlo,monospace; font-size:11px; padding:1px 8px;
+           border-radius:10px; border:1px solid currentColor; text-transform:uppercase; letter-spacing:.05em; }
+  .ok { color:var(--mint); } .bad { color:var(--warn); } .amber { color:var(--amber); } .na { color:var(--muted); }
+  .bar { height:6px; background:var(--deep); border-radius:3px; overflow:hidden; }
+  .bar > i { display:block; height:100%; background:var(--mint); }
+  .src { display:flex; gap:6px; align-items:baseline; }
+  .src code { color:var(--mint); font-size:12px; }
+  .src.unused code { color:var(--muted); }
+  .verdict { padding:10px 16px; border-top:1px solid var(--line); font-size:14px; }
+  .score { display:grid; grid-template-columns:repeat(3,1fr); }
+  .score div { padding:10px 16px; text-align:center; }
+  .score div + div { border-left:1px solid var(--line); }
+  .score b { display:block; font-size:24px; font-weight:400; }
+  .score span { color:var(--muted); font-size:12px; }
+  .muted { color:var(--muted); }
+</style>
+<script>
+  if (new URLSearchParams(location.search).has("embed")) document.documentElement.classList.add("embed");
+</script>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Fern, the Fernhollow Health assistant</h1>
+    <p>Helpful about plans, appointments and refills. Not allowed to give medical advice. Try to make it.</p>
+  </header>
+  <div class="notice">
+    <span><b>Demo only, not medical advice.</b> Fernhollow Health and its member are fictional. Don't type real health information.</span>
+    <span>Emergency: <a href="tel:911">call 911</a>. Crisis: <a href="tel:988">call or text 988</a>.</span>
+  </div>
+  <div class="grid">
+    <div class="card">
+      <h2 class="mono"><span>Chat as demo member Alex Rivera</span><span id="turns"></span></h2>
+      <div id="log"></div>
+      <form class="composer" id="composer">
+        <input id="input" autocomplete="off" placeholder="Ask about your plan, or try to get medical advice…">
+        <button id="send" type="submit">Send</button>
+        <button id="reset" type="button" class="ghost" title="Start a new conversation">New</button>
+      </form>
+      <div class="chips">
+        <div class="mono muted">Try to break it</div>
+        <div class="row" id="attacks"></div>
+        <div class="mono muted" style="margin-top:4px">Or ask what it's for</div>
+        <div class="row" id="examples"></div>
+      </div>
+    </div>
+    <div class="side">
+      <div class="card">
+        <h2 class="mono"><span>Guardrail audit</span><span id="audit-for">latest turn</span></h2>
+        <ol class="stages" id="stages"></ol>
+        <div class="verdict" id="verdict"><span class="muted">Send a message to watch each guardrail run.</span></div>
+      </div>
+      <div class="card">
+        <h2 class="mono"><span>This conversation</span></h2>
+        <div class="score">
+          <div><b id="s-refused">0</b><span>advice requests refused</span></div>
+          <div><b id="s-blocked">0</b><span>caught by the output guard</span></div>
+          <div><b id="s-answered">0</b><span>answered from sources</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const STAGES = [
+  ["screen", "Emergency screen", "deterministic, before any model"],
+  ["classify", "Policy classifier", ""],
+  ["retrieve", "Retrieval", "knowledge base"],
+  ["respond", "Grounded responder", ""],
+  ["guard", "Output guard", ""],
+];
+const ROUTE_LABEL = { logistics: "logistics", medical_advice: "medical advice", emergency: "emergency",
+                      crisis: "crisis", out_of_scope: "out of scope" };
+let cfg = null, convId = null, busy = false, turnCount = 0;
+const titles = {};
+const audits = [];
+const counts = { refused: 0, blocked: 0, answered: 0 };
+
+function renderStages(state) {
+  const box = $("stages"); box.textContent = "";
+  for (const [key, name, sub] of STAGES) {
+    const s = state[key] || {};
+    const li = el("li", "stage " + (s.cls || ""));
+    li.append(el("span", "dot"));
+    const h = el("h3"); h.append(el("span", null, name), el("small", null, s.ms != null ? s.ms + " ms" : (key === "classify" || key === "respond" ? cfg?.models.fast.replace("anthropic/", "") : key === "guard" ? cfg?.models.judge.replace("anthropic/", "") : sub)));
+    li.append(h);
+    if (s.detail) { const d = el("div", "detail"); d.append(...s.detail); li.append(d); }
+    box.append(li);
+  }
+}
+
+function badge(text, cls) { return el("span", "badge " + cls, text); }
+function line(...parts) { const d = el("div"); d.append(...parts.map(p => typeof p === "string" ? document.createTextNode(p) : p)); return d; }
+
+function stageState(events, final) {
+  const st = {};
+  const by = Object.fromEntries(events.map(e => [e.stage, e]));
+  const t = final?.timings_ms || {};
+  const screen = by.screen;
+  if (screen) st.screen = { cls: screen.matched ? "hit" : "done", ms: t.screen,
+    detail: [line(screen.matched ? badge(screen.matched === "crisis" ? "crisis → 988" : "emergency → 911", "bad") : badge("no match", "ok"))] };
+  const c = by.classify;
+  if (c) st.classify = { cls: ["emergency","crisis"].includes(c.route) ? "hit" : "done", ms: t.classify,
+    detail: [line(badge(ROUTE_LABEL[c.route] || c.route, c.route === "logistics" ? "ok" : c.route === "out_of_scope" ? "na" : "bad"),
+                  c.technique && c.technique !== "none" ? "  technique: " + c.technique.replace(/_/g, " ") : ""),
+             line(c.reason || "")] };
+  const r = by.retrieve;
+  if (r) {
+    const cited = new Set((final?.sources || []).filter(s => s.cited).map(s => s.id));
+    st.retrieve = { cls: "done", ms: t.retrieve, detail: r.ids.map(id => {
+      const d = el("div", "src" + (final && !cited.has(id) ? " unused" : ""));
+      d.append(el("code", null, id), el("span", null, (final && cited.has(id) ? "cited · " : "") + (titles[id] || "")));
+      return d; }) };
+  }
+  if (by.respond) st.respond = { cls: "done", ms: t.respond, detail: [line("Draft written from the passages above.")] };
+  const g = by.guard;
+  if (g) {
+    const bar = el("div", "bar"); const fill = el("i"); fill.style.width = Math.round(g.grounded * 100) + "%"; bar.append(fill);
+    const det = [line(g.medical_advice ? badge("medical advice found → draft blocked", "amber") : badge("no medical advice", "ok")),
+                 line("grounded in sources: " + Math.round(g.grounded * 100) + "%"), bar];
+    for (const u of g.unsupported || []) det.push(line("unsupported: " + u));
+    st.guard = { cls: g.medical_advice ? "hit" : "done", ms: t.guard, detail: det };
+  }
+  // Mark the next stage as running, and stages a decided turn never reached as skipped.
+  const order = STAGES.map(s => s[0]);
+  if (final) { for (const k of order) if (!st[k]) st[k] = { cls: "skip", detail: [line(final.emergency ? "skipped: routed to emergency services" : "skipped")] }; }
+  else { const next = order.find(k => !st[k]); if (next) st[next] = { cls: "run" }; }
+  return st;
+}
+
+function renderVerdict(final) {
+  const v = $("verdict"); v.textContent = "";
+  if (!final) { v.append(el("span", "muted", "Running…")); return; }
+  const who = final.decided_by;
+  const cls = final.emergency ? "bad" : final.blocked ? "amber" : final.route === "logistics" ? "ok" : "ok";
+  const text = final.emergency ? "Routed to emergency services by the " + who + "."
+    : final.blocked ? "The output guard replaced the draft with a safe refusal."
+    : final.route === "medical_advice" ? "Refused by the responder; the guard confirmed no advice."
+    : final.route === "logistics" ? "Answered from the knowledge base, with citations." : "Handled by the " + who + ".";
+  v.append(badge(final.emergency ? "emergency" : final.blocked ? "blocked" : final.route === "medical_advice" ? "refused" : "answered", cls), " ", text);
+}
+
+function showAudit(i) {
+  const a = audits[i]; if (!a) return;
+  document.querySelectorAll(".msg.bot").forEach(m => m.classList.toggle("selected", Number(m.dataset.turn) === i));
+  $("audit-for").textContent = i === audits.length - 1 ? "latest turn" : "turn " + (i + 1);
+  renderStages(stageState(a.events, a.final)); renderVerdict(a.final);
+}
+
+function citeText(node, text) {
+  for (const part of text.split(/(\[[a-z0-9-]+\])/g)) {
+    const m = part.match(/^\[([a-z0-9-]+)\]$/);
+    if (m && titles[m[1]]) { const c = el("span", "cite", m[1]); c.title = titles[m[1]]; node.append(c); }
+    else node.append(document.createTextNode(part));
+  }
+}
+
+function addMsg(who, text, cls) {
+  const m = el("div", "msg " + cls);
+  m.append(el("span", "who", who));
+  const body = el("span"); citeText(body, text); m.append(body);
+  $("log").append(m); $("log").scrollTop = $("log").scrollHeight;
+  return m;
+}
+
+async function start() {
+  const r = await fetch("api/conversations", { method: "POST" });
+  if (!r.ok) { addMsg("Demo", (await r.json()).detail || "Could not start a conversation.", "bot"); return false; }
+  const j = await r.json(); convId = j.id; turnCount = 0; updateTurns();
+  addMsg(cfg.assistant, j.greeting, "bot");
+  return true;
+}
+
+function updateTurns() { $("turns").textContent = turnCount + " / " + (cfg?.limits.max_turns ?? "") + " messages"; }
+
+async function send(text) {
+  text = text.trim(); if (!text || busy) return;
+  if (text.length > cfg.limits.max_chars) { alert("Keep it under " + cfg.limits.max_chars + " characters."); return; }
+  if (!convId && !(await start())) return;
+  busy = true; $("send").disabled = true; $("input").value = "";
+  addMsg("You", text, "me");
+  const pending = addMsg(cfg.assistant, "Checking…", "bot thinking");
+  const idx = audits.length; const audit = { events: [], final: null }; audits.push(audit);
+  showAudit(idx);
+  try {
+    const r = await fetch("api/conversations/" + convId + "/messages", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }) });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    turnCount++; updateTurns();
+    const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read(); if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let nl; while ((nl = buf.indexOf("\n")) >= 0) {
+        const ev = JSON.parse(buf.slice(0, nl)); buf = buf.slice(nl + 1);
+        if (ev.type === "stage") { audit.events.push(ev); showAudit(idx); }
+        else if (ev.type === "final") { audit.final = ev; finishTurn(pending, ev, idx); }
+        else if (ev.type === "error") throw new Error(ev.message);
+      }
+    }
+  } catch (e) {
+    pending.remove(); addMsg("Demo", String(e.message || e), "bot");
+    if (/expired/.test(String(e.message))) convId = null;
+  } finally { busy = false; $("send").disabled = false; $("input").focus(); }
+}
+
+function finishTurn(node, f, idx) {
+  node.className = "msg bot" + (f.emergency ? " emergency" : f.blocked ? " blocked" : f.route === "medical_advice" ? " refused" : "");
+  node.dataset.turn = idx; node.onclick = () => showAudit(idx);
+  node.textContent = ""; node.append(el("span", "who", cfg.assistant + (f.emergency ? " · emergency" : "")));
+  const body = el("span"); citeText(body, f.reply); node.append(body);
+  if (f.emergency) {
+    const sos = el("div", "sos");
+    const a1 = el("a", null, f.route === "crisis" ? "Call or text 988" : "Call 911"); a1.href = f.route === "crisis" ? "tel:988" : "tel:911";
+    const a2 = el("a", "alt", f.route === "crisis" ? "Emergency: 911" : "Crisis line: 988"); a2.href = f.route === "crisis" ? "tel:911" : "tel:988";
+    sos.append(a1, a2); node.append(sos);
+  }
+  if (f.blocked) counts.blocked++;
+  if (f.route === "medical_advice" && !f.emergency) counts.refused++;
+  if (f.route === "logistics" && !f.blocked) counts.answered++;
+  $("s-refused").textContent = counts.refused; $("s-blocked").textContent = counts.blocked; $("s-answered").textContent = counts.answered;
+  showAudit(idx);
+  $("log").scrollTop = $("log").scrollHeight;
+}
+
+$("composer").onsubmit = (e) => { e.preventDefault(); send($("input").value); };
+$("reset").onclick = async () => {
+  if (busy) return;
+  $("log").textContent = ""; audits.length = 0; convId = null;
+  counts.refused = counts.blocked = counts.answered = 0;
+  ["s-refused", "s-blocked", "s-answered"].forEach(id => $(id).textContent = "0");
+  renderStages({}); $("verdict").innerHTML = '<span class="muted">Send a message to watch each guardrail run.</span>';
+  await start();
+};
+
+fetch("api/config").then(r => r.json()).then(async (c) => {
+  cfg = c; $("input").maxLength = c.limits.max_chars; updateTurns();
+  for (const d of c.documents) titles[d.id] = d.title;
+  for (const a of c.attacks) {
+    const b = el("button", "chip"); b.type = "button"; b.append(el("em", null, a.technique), document.createTextNode(a.text));
+    b.onclick = () => send(a.text); $("attacks").append(b);
+  }
+  for (const x of c.examples) {
+    const b = el("button", "chip safe"); b.type = "button"; b.append(el("em", null, "ask"), document.createTextNode(x));
+    b.onclick = () => send(x); $("examples").append(b);
+  }
+  renderStages({});
+  await start();
+});
+
+// Embedded in another page: report our height so the parent can size the iframe to fit.
+if (document.documentElement.classList.contains("embed") && window.parent !== window) {
+  const report = () => window.parent.postMessage(
+    { type: "chalk-demo-height", height: Math.ceil(document.body.getBoundingClientRect().height) }, "*");
+  new ResizeObserver(report).observe(document.body);
+  report();
+}
+</script>
+</body>
+</html>
