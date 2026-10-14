@@ -22,7 +22,7 @@
             border:1px solid var(--line); border-left:3px solid var(--amber); border-radius:4px; padding:8px 12px;
             background:var(--deep); }
   .notice b { color:var(--ink); font-weight:500; }
-  .notice a { color:var(--warn); }
+  .notice .emergency-number { color:var(--warn); }
   button { font:12px/14px ui-monospace,"SFMono-Regular",Menlo,monospace; text-transform:uppercase;
            letter-spacing:.06em; border:1px solid var(--accent); border-radius:20px; padding:10px 16px;
            cursor:pointer; background:var(--accent); color:var(--bg); white-space:nowrap; }
@@ -51,9 +51,9 @@
   .cite { display:inline-block; font:11px/16px ui-monospace,Menlo,monospace; color:var(--mint);
           border:1px solid var(--line); border-radius:8px; padding:0 6px; margin:0 2px; vertical-align:1px; }
   .sos { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
-  .sos a { font:12px/14px ui-monospace,Menlo,monospace; text-transform:uppercase; letter-spacing:.06em;
-           border-radius:20px; padding:8px 14px; text-decoration:none; background:var(--warn); color:var(--deep); }
-  .sos a.alt { background:transparent; color:var(--warn); border:1px solid var(--warn); }
+  .sos button { font:12px/14px ui-monospace,Menlo,monospace; text-transform:uppercase; letter-spacing:.06em;
+           border:0; border-radius:20px; padding:8px 14px; background:var(--warn); color:var(--deep); cursor:default; }
+  .sos button.alt { background:transparent; color:var(--warn); border:1px solid var(--warn); }
   .composer { display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--line); align-items:center; }
   .composer input { flex:1; min-width:0; font:inherit; color:var(--ink); background:var(--deep);
                     border:1px solid var(--line); border-radius:20px; padding:9px 14px; outline:none; }
@@ -110,7 +110,7 @@
   </header>
   <div class="notice">
     <span><b>Demo only, not medical advice.</b> Fernhollow Health and its member are fictional. Don't type real health information.</span>
-    <span>Emergency: <a href="tel:911">call 911</a>. Crisis: <a href="tel:988">call or text 988</a>.</span>
+    <span>Emergency: <span class="emergency-number">call 911</span>. Crisis: <span class="emergency-number">call or text 988</span>.</span>
   </div>
   <div class="grid">
     <div class="card">
@@ -297,9 +297,11 @@ function finishTurn(node, f, idx) {
   const body = el("span"); citeText(body, f.reply); node.append(body);
   if (f.emergency) {
     const sos = el("div", "sos");
-    const a1 = el("a", null, f.route === "crisis" ? "Call or text 988" : "Call 911"); a1.href = f.route === "crisis" ? "tel:988" : "tel:911";
-    const a2 = el("a", "alt", f.route === "crisis" ? "Emergency: 911" : "Crisis line: 988"); a2.href = f.route === "crisis" ? "tel:911" : "tel:988";
-    sos.append(a1, a2); node.append(sos);
+    // Demo call controls are inert, including the message's audit-selection click handler.
+    sos.onclick = (e) => e.stopPropagation();
+    const b1 = el("button", null, f.route === "crisis" ? "Call or text 988" : "Call 911"); b1.type = "button";
+    const b2 = el("button", "alt", f.route === "crisis" ? "Emergency: 911" : "Crisis line: 988"); b2.type = "button";
+    sos.append(b1, b2); node.append(sos);
   }
   if (f.blocked) counts.blocked++;
   if (f.route === "medical_advice" && !f.emergency) counts.refused++;
