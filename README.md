@@ -87,3 +87,10 @@ runs one replica.
 Apache-2.0. Fernhollow Health, its clinicians, its member and their phone numbers (in the
 555-01xx range) are fictional. This is a demo, not medical advice. In an emergency call 911; if
 you are thinking about harming yourself, call or text 988.
+
+## Local authentication
+
+The SDK reads credentials, API host, and the selected environment from your existing
+`chalk login` in `~/.chalk.yml`, including project-scoped and default logins.
+For unattended runs, `CHALK_CLIENT_ID` and `CHALK_CLIENT_SECRET` remain supported. Where available, `--env-id`
+overrides the target environment; otherwise the SDK uses your login or environment settings.

@@ -25,7 +25,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -37,15 +36,20 @@ from pydantic import BaseModel, Field
 HERE = Path(__file__).resolve().parent
 
 
-def load_chalk_env(env_id: str | None) -> None:
-    if "CHALK_CLIENT_ID" not in os.environ:
-        cfg = json.loads(subprocess.check_output(["chalk", "config", "--json"]))
-        os.environ["CHALK_API_SERVER"] = cfg["apiServer"]["value"]
-        os.environ["CHALK_CLIENT_ID"] = cfg["clientId"]["value"]
-        os.environ["CHALK_CLIENT_SECRET"] = cfg["clientSecret"]["value"]
-        os.environ.setdefault("CHALK_ENVIRONMENT_ID", cfg["environment"]["value"])
+def configure_chalk(env_id: str | None) -> None:
+    """Resolve deployment routing settings using the SDK's ambient login."""
+    from chalkcompute import ConnectClient
+
     if env_id:
-        os.environ["CHALK_ENVIRONMENT_ID"] = env_id
+        os.environ["CHALK_ENVIRONMENT"] = env_id
+    client = ConnectClient()
+    try:
+        client._ensure_auth()
+        # Only routing settings are needed by the deployed app; credentials stay in the SDK.
+        os.environ["CHALK_API_SERVER"] = client._api_server
+        os.environ["CHALK_ENVIRONMENT_ID"] = client._env_id
+    finally:
+        client.close()
 
 
 # The decorators below deploy at import time and read the environment then, so the
@@ -54,7 +58,7 @@ def load_chalk_env(env_id: str | None) -> None:
 if __name__ == "__main__":
     _early = argparse.ArgumentParser(add_help=False)
     _early.add_argument("--env-id", default=None)
-    load_chalk_env(_early.parse_known_args()[0].env_id)
+    configure_chalk(_early.parse_known_args()[0].env_id)
 
 FAST_MODEL = os.environ.get("FAST_MODEL", "anthropic/claude-haiku-5-5")
 JUDGE_MODEL = os.environ.get("JUDGE_MODEL", "anthropic/claude-sonnet-5-5")
