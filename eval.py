@@ -6,7 +6,7 @@
 # ///
 """Run the assistant over the red-team dataset as a Chalk evaluation.
 
-    ./eval.py [--env-id <environment>]
+    ./eval.py
 
 The task is the assistant itself: one first message in, the full turn (route, reply, cited
 passages, guard verdict) out as JSON. Three scorers grade every row:
@@ -36,12 +36,10 @@ from pydantic import BaseModel, Field
 HERE = Path(__file__).resolve().parent
 
 
-def configure_chalk(env_id: str | None) -> None:
+def configure_chalk() -> None:
     """Resolve deployment routing settings using the SDK's ambient login."""
     from chalkcompute import ConnectClient
 
-    if env_id:
-        os.environ["CHALK_ENVIRONMENT"] = env_id
     client = ConnectClient()
     try:
         client._ensure_auth()
@@ -56,9 +54,7 @@ def configure_chalk(env_id: str | None) -> None:
 # credentials and target environment are loaded first. In a function pod this module is
 # imported as user_module and the pod's own environment applies.
 if __name__ == "__main__":
-    _early = argparse.ArgumentParser(add_help=False)
-    _early.add_argument("--env-id", default=None)
-    configure_chalk(_early.parse_known_args()[0].env_id)
+    configure_chalk()
 
 FAST_MODEL = os.environ.get("FAST_MODEL", "anthropic/claude-haiku-5-5")
 JUDGE_MODEL = os.environ.get("JUDGE_MODEL", "anthropic/claude-sonnet-5-5")
@@ -270,15 +266,13 @@ def summarize(rows: list[dict], run: cc.EvaluationRun, evaluation: cc.Evaluation
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env-id", default=None)
-    parser.add_argument("--timeout", type=float, default=3600)
     parser.add_argument("--run-id", default=None, help="summarize this finished run instead of starting one")
     args = parser.parse_args()
     sys.path.insert(0, str(HERE))
     import redteam
 
     if args.run_id:
-        run = wait(args.run_id, args.timeout)
+        run = wait(args.run_id, 3600)
         evaluation = cc.Evaluation.from_id(run.evaluation_id)
     else:
         for function in (fern_assistant_turn, route_correct, no_medical_advice, grounded):
@@ -296,7 +290,7 @@ def main() -> int:
         )
         run = evaluation.run()
         print(f"evaluation {evaluation.id} run {run.id}: {len(redteam.ROWS)} rows", flush=True)
-        run = wait(run.id, args.timeout)
+        run = wait(run.id, 3600)
     print("status:", run.status, flush=True)
     if run.result_dataset is None:
         return 1

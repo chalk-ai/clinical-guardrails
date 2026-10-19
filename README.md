@@ -47,9 +47,9 @@ enabled (`chalk router status`). The environment also needs a router API key sto
 secret `CHALK_ROUTER_API_KEY` (`chalk router api-key create`).
 
 ```bash
-./deploy.py     # the live assistant, as a scaling group; prints its URL
-./eval.py       # the red-team run, as a Chalk evaluation; writes eval_results.json
-./deploy.py     # again, so the page serves the new results
+./deploy.py # the live assistant, as a scaling group; prints its URL
+./eval.py # the red-team run, as a Chalk evaluation; writes eval_results.json
+./deploy.py # again, so the page serves the new results
 ```
 
 ## The evaluation
@@ -92,5 +92,5 @@ you are thinking about harming yourself, call or text 988.
 
 The SDK reads credentials, API host, and the selected environment from your existing
 `chalk login` in `~/.chalk.yml`, including project-scoped and default logins.
-For unattended runs, `CHALK_CLIENT_ID` and `CHALK_CLIENT_SECRET` remain supported. Where available, `--env-id`
-overrides the target environment; otherwise the SDK uses your login or environment settings.
+For unattended runs, `CHALK_CLIENT_ID` and `CHALK_CLIENT_SECRET` remain supported.
+The examples use the current environment selected by your Chalk login.
