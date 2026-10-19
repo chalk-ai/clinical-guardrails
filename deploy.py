@@ -11,17 +11,13 @@ environment:
   - the Chalk router is enabled (`chalk router status`)
   - a secret holds a router API key (`chalk router api-key create`), CHALK_ROUTER_API_KEY by default
 
-Credentials for the deploy itself come from `chalk config` in the current directory (or the
+Credentials for the deploy itself come from your existing `chalk login` (or the
 CHALK_* env vars):
-    ./deploy.py [--env-id <environment>] [--name clinical-guardrails]
+    ./deploy.py
 """
 
 from __future__ import annotations
 
-import argparse
-import json
-import os
-import subprocess
 import time
 from pathlib import Path
 
@@ -31,29 +27,9 @@ APP_FILES = ["agent.py", "knowledge.py", "server.py", "index.html"]
 OPTIONAL_FILES = ["eval_results.json"]
 
 
-def load_chalk_env(env_id: str | None) -> None:
-    if "CHALK_CLIENT_ID" not in os.environ:
-        cfg = json.loads(subprocess.check_output(["chalk", "config", "--json"]))
-        os.environ["CHALK_API_SERVER"] = cfg["apiServer"]["value"]
-        os.environ["CHALK_CLIENT_ID"] = cfg["clientId"]["value"]
-        os.environ["CHALK_CLIENT_SECRET"] = cfg["clientSecret"]["value"]
-        os.environ.setdefault("CHALK_ENVIRONMENT_ID", cfg["environment"]["value"])
-    if env_id:
-        os.environ["CHALK_ENVIRONMENT_ID"] = env_id
-
-
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--name", default="clinical-guardrails")
-    parser.add_argument("--env-id", default=None)
     # The fast model classifies and answers every turn; the judge model is the output guard.
-    parser.add_argument("--fast-model", default="anthropic/claude-haiku-5-5")
-    parser.add_argument("--judge-model", default="anthropic/claude-sonnet-5-5")
-    parser.add_argument("--key-secret", default="CHALK_ROUTER_API_KEY")
-    parser.add_argument("--ready-timeout", type=float, default=900.0)
-    args = parser.parse_args()
 
-    load_chalk_env(args.env_id)
     from chalkcompute import Image, ReadinessProbe, ScalingGroup, Secret
 
     image = Image.debian_slim(python_version="3.12").pip_install(
@@ -68,17 +44,15 @@ def main() -> None:
 
     sg = ScalingGroup(
         image=image,
-        name=args.name,
+        name='clinical-guardrails',
         cpu="1",
         memory="2Gi",
         env={
-            # Not secrets: where the model gateway lives and which environment's router to use.
-            "CHALK_API_SERVER": os.environ["CHALK_API_SERVER"],
-            "CHALK_ENVIRONMENT_ID": os.environ["CHALK_ENVIRONMENT_ID"],
-            "FAST_MODEL": args.fast_model,
-            "JUDGE_MODEL": args.judge_model,
+
+            "FAST_MODEL": 'anthropic/claude-haiku-5-5',
+            "JUDGE_MODEL": 'anthropic/claude-sonnet-5-5',
             "PORT": "8080",
-            "ROUTER_API_KEY": Secret.from_chalk_env(args.key_secret),
+            "ROUTER_API_KEY": Secret.from_chalk_env('CHALK_ROUTER_API_KEY'),
         },
         entrypoint=["python", "/app/server.py"],
         port=8080,
@@ -89,7 +63,7 @@ def main() -> None:
     )
     t0 = time.monotonic()
     try:
-        sg.deploy(build_timeout=1200.0, ready_timeout=args.ready_timeout)
+        sg.deploy(build_timeout=1200.0, ready_timeout=900.0)
     finally:
         print(f"deploy returned after {time.monotonic() - t0:.0f}s")
     print("web_url:", sg.web_url)

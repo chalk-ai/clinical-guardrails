@@ -58,7 +58,7 @@ def model_config() -> agent.ModelConfig:
     auth = {"api_key": key} if key.startswith("ck-") else {"auth_token": key, "api_key": None}
     client = anthropic.Anthropic(
         base_url=ROUTER_BASE_URL,
-        default_headers={"X-Chalk-Env-Id": os.environ["CHALK_ENVIRONMENT_ID"]},
+        default_headers={"X-Chalk-Env-Id": os.environ["CHALK_ENVIRONMENT"]},
         timeout=60.0,
         max_retries=2,
         **auth,

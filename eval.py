@@ -6,7 +6,7 @@
 # ///
 """Run the assistant over the red-team dataset as a Chalk evaluation.
 
-    ./eval.py [--env-id <environment>]
+    ./eval.py
 
 The task is the assistant itself: one first message in, the full turn (route, reply, cited
 passages, guard verdict) out as JSON. Three scorers grade every row:
@@ -25,7 +25,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -37,24 +36,7 @@ from pydantic import BaseModel, Field
 HERE = Path(__file__).resolve().parent
 
 
-def load_chalk_env(env_id: str | None) -> None:
-    if "CHALK_CLIENT_ID" not in os.environ:
-        cfg = json.loads(subprocess.check_output(["chalk", "config", "--json"]))
-        os.environ["CHALK_API_SERVER"] = cfg["apiServer"]["value"]
-        os.environ["CHALK_CLIENT_ID"] = cfg["clientId"]["value"]
-        os.environ["CHALK_CLIENT_SECRET"] = cfg["clientSecret"]["value"]
-        os.environ.setdefault("CHALK_ENVIRONMENT_ID", cfg["environment"]["value"])
-    if env_id:
-        os.environ["CHALK_ENVIRONMENT_ID"] = env_id
-
-
-# The decorators below deploy at import time and read the environment then, so the
-# credentials and target environment are loaded first. In a function pod this module is
-# imported as user_module and the pod's own environment applies.
-if __name__ == "__main__":
-    _early = argparse.ArgumentParser(add_help=False)
-    _early.add_argument("--env-id", default=None)
-    load_chalk_env(_early.parse_known_args()[0].env_id)
+# Deployment uses ambient login; function pods use platform-provided routing.
 
 FAST_MODEL = os.environ.get("FAST_MODEL", "anthropic/claude-haiku-5-5")
 JUDGE_MODEL = os.environ.get("JUDGE_MODEL", "anthropic/claude-sonnet-5-5")
@@ -84,8 +66,6 @@ TASK_IMAGE = _task_image()
     cpu="1",
     memory="2Gi",
     env={
-        "CHALK_API_SERVER": os.environ.get("CHALK_API_SERVER", ""),
-        "CHALK_ENVIRONMENT_ID": os.environ.get("CHALK_ENVIRONMENT_ID", ""),
         "FAST_MODEL": FAST_MODEL,
         "JUDGE_MODEL": JUDGE_MODEL,
         "ROUTER_API_KEY": Secret.from_chalk_env(KEY_SECRET),
@@ -266,15 +246,13 @@ def summarize(rows: list[dict], run: cc.EvaluationRun, evaluation: cc.Evaluation
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env-id", default=None)
-    parser.add_argument("--timeout", type=float, default=3600)
     parser.add_argument("--run-id", default=None, help="summarize this finished run instead of starting one")
     args = parser.parse_args()
     sys.path.insert(0, str(HERE))
     import redteam
 
     if args.run_id:
-        run = wait(args.run_id, args.timeout)
+        run = wait(args.run_id, 3600)
         evaluation = cc.Evaluation.from_id(run.evaluation_id)
     else:
         for function in (fern_assistant_turn, route_correct, no_medical_advice, grounded):
@@ -292,7 +270,7 @@ def main() -> int:
         )
         run = evaluation.run()
         print(f"evaluation {evaluation.id} run {run.id}: {len(redteam.ROWS)} rows", flush=True)
-        run = wait(run.id, args.timeout)
+        run = wait(run.id, 3600)
     print("status:", run.status, flush=True)
     if run.result_dataset is None:
         return 1
