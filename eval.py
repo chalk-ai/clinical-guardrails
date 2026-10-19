@@ -36,25 +36,7 @@ from pydantic import BaseModel, Field
 HERE = Path(__file__).resolve().parent
 
 
-def configure_chalk() -> None:
-    """Resolve deployment routing settings using the SDK's ambient login."""
-    from chalkcompute import ConnectClient
-
-    client = ConnectClient()
-    try:
-        client._ensure_auth()
-        # Only routing settings are needed by the deployed app; credentials stay in the SDK.
-        os.environ["CHALK_API_SERVER"] = client._api_server
-        os.environ["CHALK_ENVIRONMENT_ID"] = client._env_id
-    finally:
-        client.close()
-
-
-# The decorators below deploy at import time and read the environment then, so the
-# credentials and target environment are loaded first. In a function pod this module is
-# imported as user_module and the pod's own environment applies.
-if __name__ == "__main__":
-    configure_chalk()
+# Deployment uses ambient login; function pods use platform-provided routing.
 
 FAST_MODEL = os.environ.get("FAST_MODEL", "anthropic/claude-haiku-5-5")
 JUDGE_MODEL = os.environ.get("JUDGE_MODEL", "anthropic/claude-sonnet-5-5")
@@ -84,8 +66,6 @@ TASK_IMAGE = _task_image()
     cpu="1",
     memory="2Gi",
     env={
-        "CHALK_API_SERVER": os.environ.get("CHALK_API_SERVER", ""),
-        "CHALK_ENVIRONMENT_ID": os.environ.get("CHALK_ENVIRONMENT_ID", ""),
         "FAST_MODEL": FAST_MODEL,
         "JUDGE_MODEL": JUDGE_MODEL,
         "ROUTER_API_KEY": Secret.from_chalk_env(KEY_SECRET),
